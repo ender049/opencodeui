@@ -51,7 +51,7 @@ jobs:
 
       - name: Clone upstream
         run: |
-          git clone --depth 1 --branch ${{ needs.check.outputs.version }} \
+          git clone --branch ${{ needs.check.outputs.version }} \
             https://github.com/${{ env.UPSTREAM_REPO }}.git upstream
 
       - name: Install
