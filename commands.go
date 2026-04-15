@@ -22,6 +22,7 @@ const (
 	frontendDir = "./dist"
 	versionFile = ".version"
 	toolVersion = "v0.1.0"
+	repoOwner   = "ender049"
 	repoName    = "opencodeui"
 	pidFile     = ".opencodeui.pid"
 )
@@ -84,11 +85,11 @@ func readLocalVersion() string {
 }
 
 func getToolRemoteVersion() (string, error) {
-	return getLatestReleaseTag(repoOwner(), repoName)
+	return getLatestReleaseTag(repoOwner, repoName)
 }
 
 func getFrontendRemoteVersion() (string, error) {
-	return getLatestReleaseTag(repoOwner(), repoName)
+	return getLatestReleaseTag(repoOwner, repoName)
 }
 
 func getLatestReleaseTag(owner, repo string) (string, error) {
@@ -110,23 +111,6 @@ func getLatestReleaseTag(owner, repo string) (string, error) {
 		return "", err
 	}
 	return result.TagName, nil
-}
-
-func getRepoOwner() string {
-	out, err := exec.Command("gh", "api", "user", "--jq", ".login").Output()
-	if err != nil {
-		return "unknown"
-	}
-	return strings.TrimSpace(string(out))
-}
-
-var cachedOwner string
-
-func repoOwner() string {
-	if cachedOwner == "" {
-		cachedOwner = getRepoOwner()
-	}
-	return cachedOwner
 }
 
 var updateTool, updateFrontend bool
@@ -180,7 +164,7 @@ func updateToolBinary() error {
 	}
 
 	url := fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/opencodeui-%s-%s",
-		repoOwner(), repoName, remote, osName, arch)
+		repoOwner, repoName, remote, osName, arch)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -238,7 +222,7 @@ func updateFrontendFiles() error {
 	fmt.Printf("Updating frontend %s → %s\n", local, remote)
 
 	url := fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/opencodeui-dist.tar.gz",
-		repoOwner(), repoName, remote)
+		repoOwner, repoName, remote)
 
 	resp, err := http.Get(url)
 	if err != nil {
