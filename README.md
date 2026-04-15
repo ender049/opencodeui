@@ -25,6 +25,7 @@
 ./opencodeui status
 ./opencodeui stop
 ./opencodeui version
+./opencodeui version --remote
 ./opencodeui update
 ```
 
@@ -50,8 +51,19 @@
 
 - `update` 只更新工具二进制
 - 如果服务正在运行，会提示是否先停止服务再继续更新
+- 如果原服务正在运行，更新成功后会按原监听参数和后端参数自动重新拉起
 - 因为前端已嵌入二进制，所以不再有单独前端更新逻辑
 - 下载 GitHub release 失败时，会自动尝试常见 GitHub 下载反代镜像
+
+## 密码兼容
+
+兼容上游 OpenCodeUI 的服务密码模式。
+
+- 上游前端在请求时会携带 `Authorization: Basic ...`
+- WebSocket 也会带上认证信息
+- 本工具的 `/api` 反代不会移除这些认证头
+
+因此如果你的 `opencode serve` 设置了密码，这种部署方式仍然可以使用。
 
 ## 发布逻辑
 

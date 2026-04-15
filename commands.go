@@ -45,6 +45,7 @@ var (
 	backendURL string
 	listenIP   string
 	listenPort int
+	showRemote bool
 )
 
 var versionCmd = &cobra.Command{
@@ -54,23 +55,32 @@ var versionCmd = &cobra.Command{
 }
 
 func runVersion(_ *cobra.Command, _ []string) error {
-	fmt.Printf("Tool version:  %s\n", toolVersion)
+	fmt.Printf("Tool version: %s\n", toolVersion)
+	if !showRemote {
+		return nil
+	}
+
+	stop := startSpinner("Checking remote version")
+	defer stop()
 
 	remote, err := getLatestReleaseTag(repoOwner, repoName)
 	if err != nil {
-		fmt.Printf("Tool remote:   error - %v\n", err)
+		stop()
+		fmt.Printf("Remote version: error - %v\n", err)
 		return nil
 	}
 	if remote == "" {
-		fmt.Println("Tool remote:   not published")
+		stop()
+		fmt.Println("Remote version: not published")
 		return nil
 	}
+	stop()
 
-	fmt.Printf("Tool remote:   %s\n", remote)
+	fmt.Printf("Remote version: %s\n", remote)
 	if remote == toolVersion {
-		fmt.Println("Tool status:   up to date ✓")
+		fmt.Println("Status: up to date ✓")
 	} else {
-		fmt.Println("Tool status:   update available ↓")
+		fmt.Println("Status: update available ↓")
 	}
 
 	return nil
@@ -83,37 +93,56 @@ var updateCmd = &cobra.Command{
 }
 
 func runUpdate(_ *cobra.Command, _ []string) error {
+	var runningState *serverState
 	if pid, _ := readPID(); pid > 0 && isProcessRunning(pid) {
-		ok, err := confirmStopForUpdate(pid)
+		state, err := readState()
+		if err == nil {
+			runningState = &state
+		}
+	}
+
+	stopCheck := startSpinner("Checking latest version")
+
+	remote, err := getLatestReleaseTag(repoOwner, repoName)
+	if err != nil {
+		stopCheck()
+		return fmt.Errorf("failed to check remote: %w", err)
+	}
+	if remote == "" {
+		stopCheck()
+		return fmt.Errorf("no published release found")
+	}
+	if remote == toolVersion {
+		stopCheck()
+		fmt.Printf("Already at latest version: %s\n", toolVersion)
+		return nil
+	}
+	stopCheck()
+
+	if runningState != nil {
+		ok, err := confirmStopForUpdate(runningState.PID)
 		if err != nil {
 			return err
 		}
 		if !ok {
 			return fmt.Errorf("update cancelled")
 		}
-		if err := stopProcess(pid); err != nil {
+		if err := stopProcess(runningState.PID); err != nil {
 			return fmt.Errorf("failed to stop running server: %w", err)
 		}
+		_ = os.Remove(pidFile)
+		_ = os.Remove(stateFile)
 		fmt.Println("Server stopped")
 	}
 
-	remote, err := getLatestReleaseTag(repoOwner, repoName)
-	if err != nil {
-		return fmt.Errorf("failed to check remote: %w", err)
-	}
-	if remote == "" {
-		return fmt.Errorf("no published release found")
-	}
-	if remote == toolVersion {
-		fmt.Printf("Already at latest version: %s\n", toolVersion)
-		return nil
-	}
-
+	stopDownload := startSpinner("Downloading update")
 	resp, sourceURL, err := downloadReleaseAsset(remote, toolAssetName())
 	if err != nil {
+		stopDownload()
 		return err
 	}
 	defer resp.Body.Close()
+	stopDownload()
 	fmt.Printf("Downloading from %s\n", sourceURL)
 
 	selfPath, err := os.Executable()
@@ -152,6 +181,17 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 	_ = os.Remove(backupPath)
 
 	fmt.Printf("Updated to %s ✓\n", remote)
+
+	if runningState != nil {
+		fmt.Println("Restarting server")
+		pid, err := startDetached(selfPath, runningState)
+		if err != nil {
+			return fmt.Errorf("updated, but failed to restart server: %w", err)
+		}
+		runningState.PID = pid
+		fmt.Printf("Server restarted on %s:%d\n", runningState.ListenIP, runningState.Port)
+	}
+
 	return nil
 }
 
@@ -213,6 +253,36 @@ func toolAssetName() string {
 		name += ".exe"
 	}
 	return name
+}
+
+func startSpinner(label string) func() {
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticks := []rune{'|', '/', '-', '\\'}
+		i := 0
+		for {
+			select {
+			case <-stop:
+				fmt.Printf("\r%s... done\n", label)
+				return
+			case <-time.After(150 * time.Millisecond):
+				fmt.Printf("\r%s... %c", label, ticks[i%len(ticks)])
+				i++
+			}
+		}
+	}()
+
+	stopped := false
+	return func() {
+		if stopped {
+			return
+		}
+		stopped = true
+		close(stop)
+		<-done
+	}
 }
 
 func getLatestReleaseTag(owner, repo string) (string, error) {
@@ -282,6 +352,7 @@ var serveCmd = &cobra.Command{
 }
 
 func init() {
+	versionCmd.Flags().BoolVar(&showRemote, "remote", false, "Also check remote version")
 	startCmd.Flags().StringVarP(&backendURL, "backend", "b", "", "OpenCode backend URL")
 	startCmd.Flags().StringVar(&listenIP, "ip", "127.0.0.1", "Listen IP")
 	startCmd.Flags().IntVarP(&listenPort, "port", "p", 3000, "Listen port")
@@ -304,27 +375,50 @@ func runStart(_ *cobra.Command, _ []string) error {
 		}
 	}
 
+	state := serverState{
+		ListenIP: listenIP,
+		Port:     listenPort,
+		Backend:  backendURL,
+	}
+
 	selfPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable: %w", err)
 	}
+	pid, err := startDetached(selfPath, &state)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Server started")
+	fmt.Printf("  PID:     %d\n", pid)
+	fmt.Printf("  Listen:  %s:%d\n", state.ListenIP, state.Port)
+	fmt.Printf("  Backend: %s\n", state.Backend)
+	fmt.Printf("  Log:     %s\n", logFile)
+	return nil
+}
+
+func startDetached(selfPath string, state *serverState) (int, error) {
+	if state == nil {
+		return 0, fmt.Errorf("missing server state")
+	}
 
 	logHandle, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open log file: %w", err)
+		return 0, fmt.Errorf("failed to open log file: %w", err)
 	}
 	defer logHandle.Close()
 
 	nullHandle, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0)
 	if err != nil {
-		return fmt.Errorf("failed to open devnull: %w", err)
+		return 0, fmt.Errorf("failed to open devnull: %w", err)
 	}
 	defer nullHandle.Close()
 
 	cmd := exec.Command(selfPath, "serve",
-		"--backend", backendURL,
-		"--ip", listenIP,
-		"--port", fmt.Sprintf("%d", listenPort),
+		"--backend", state.Backend,
+		"--ip", state.ListenIP,
+		"--port", fmt.Sprintf("%d", state.Port),
 	)
 	cmd.Stdin = nullHandle
 	cmd.Stdout = logHandle
@@ -332,29 +426,25 @@ func runStart(_ *cobra.Command, _ []string) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start: %w", err)
+		return 0, fmt.Errorf("failed to start: %w", err)
 	}
 	pid := cmd.Process.Pid
 	_ = cmd.Process.Release()
 
 	writePID(pid)
-	if err := writeState(serverState{PID: pid, ListenIP: listenIP, Port: listenPort, Backend: backendURL}); err != nil {
-		return fmt.Errorf("failed to write state: %w", err)
+	state.PID = pid
+	if err := writeState(*state); err != nil {
+		return 0, fmt.Errorf("failed to write state: %w", err)
 	}
 
 	time.Sleep(500 * time.Millisecond)
 	if !isProcessRunning(pid) {
 		_ = os.Remove(pidFile)
 		_ = os.Remove(stateFile)
-		return fmt.Errorf("server exited immediately, check %s", logFile)
+		return 0, fmt.Errorf("server exited immediately, check %s", logFile)
 	}
 
-	fmt.Println("Server started")
-	fmt.Printf("  PID:     %d\n", pid)
-	fmt.Printf("  Listen:  %s:%d\n", listenIP, listenPort)
-	fmt.Printf("  Backend: %s\n", backendURL)
-	fmt.Printf("  Log:     %s\n", logFile)
-	return nil
+	return pid, nil
 }
 
 func runStop(_ *cobra.Command, _ []string) error {
@@ -474,8 +564,6 @@ func runServe(_ *cobra.Command, _ []string) {
 			req.URL.Scheme = "http"
 			req.URL.Host = backendURL
 			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/api")
-			req.Header.Del("Origin")
-			req.Header.Del("Referer")
 		},
 		Transport: http.DefaultTransport,
 	}
