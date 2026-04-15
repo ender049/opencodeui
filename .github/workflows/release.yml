@@ -4,6 +4,16 @@ on:
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Upstream OpenCodeUI tag, e.g. v0.5.1'
+        required: false
+        type: string
+      force:
+        description: 'Rebuild even if this repo already has the same tag'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: sync-and-release
@@ -25,12 +35,20 @@ jobs:
       - name: Get latest upstream version
         id: version
         run: |
-          VERSION=$(curl -s https://api.github.com/repos/${{ env.UPSTREAM_REPO }}/releases/latest | jq -r '.tag_name')
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(curl -s https://api.github.com/repos/${{ env.UPSTREAM_REPO }}/releases/latest | jq -r '.tag_name')
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Check if already released here
         id: check
         run: |
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            echo "exists=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.version.outputs.version }}")

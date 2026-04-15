@@ -63,3 +63,5 @@
 5. 用相同版本号在本仓库发布 Linux 二进制
 
 所以这里的 release 本质上是“上游 release 的二进制封装版”，应该优先关注上游仓库的 changelog 和设计变更。
+
+另外，workflow 也支持手动指定上游版本做一次 release，适合验证升级流程。
