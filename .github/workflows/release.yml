@@ -98,18 +98,6 @@ jobs:
           - goos: linux
             goarch: arm64
             asset: opencodeui-linux-arm64
-          - goos: darwin
-            goarch: amd64
-            asset: opencodeui-darwin-amd64
-          - goos: darwin
-            goarch: arm64
-            asset: opencodeui-darwin-arm64
-          - goos: windows
-            goarch: amd64
-            asset: opencodeui-windows-amd64.exe
-          - goos: windows
-            goarch: arm64
-            asset: opencodeui-windows-arm64.exe
     steps:
       - uses: actions/checkout@v4
 
