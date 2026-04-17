@@ -22,6 +22,9 @@
 
 ```bash
 ./opencodeui start
+./opencodeui start --foreground
+./opencodeui start --external-opencode --backend 127.0.0.1:4096
+./opencodeui restart
 ./opencodeui status
 ./opencodeui stop
 ./opencodeui version
@@ -32,28 +35,68 @@
 默认行为：
 
 - 监听地址：`127.0.0.1:3000`
-- 后端地址：`127.0.0.1:4096`
+- 默认后台运行
+- 默认纳管 `opencode`
+- 默认托管后端地址：`127.0.0.1:4096`
+- 默认情况下 `start` 就等于“后台运行 + 纳管 opencode”
+
+如果你要改成前台运行或使用外部后端：
+
+```bash
+./opencodeui start --foreground
+./opencodeui start --backend 127.0.0.1:4096
+```
+
+说明：
+
+- `start` 会后台启动 `opencodeui`，同时由 `opencodeui` 拉起并托管 `opencode serve`
+- `start --foreground` 适合 `systemd`、`supervisor`、Docker 这类外部进程管理器前台运行
+- 只要显式提供 `--backend`，就表示不纳管 `opencode`，而是转发到你手动启动的后端
+- 如果本机还没有安装 `opencode`，托管启动时会自动下载对应平台的 CLI release 二进制并安装
+- `restart` 会优先复用当前运行实例的监听参数、后端参数和托管参数，也支持通过 flags 覆盖
+- `status` 会显示托管的 `opencode` 进程状态
+- `stop` 会同时停止前端服务和它托管的 `opencode`
+- 默认托管地址是 `127.0.0.1:4096`，可用 `--oc-host`、`--oc-port` 调整
+- 可用 `--path` 指定 `opencode serve` 运行的项目目录；这对“部署程序目录”和“实际项目目录”不同的场景很重要
+- 开启托管模式时，不再单独使用 `--backend` 指向别的地址；后端会固定到托管的 `opencode`
+
+`opencode` 可执行文件获取顺序：
+
+- `OPENCODE_BINARY`
+- `OPENCODE_PATH`
+- `OPENCHAMBER_OPENCODE_PATH`
+- `OPENCHAMBER_OPENCODE_BIN`
+- 常见安装位置：`~/.opencode/bin/opencode`、`~/.local/bin/opencode`、`/usr/local/bin/opencode`、`/opt/homebrew/bin/opencode`、`/usr/bin/opencode`
+- 最后回退到当前 `PATH` 中的 `opencode`
+- 如果以上都找不到，会自动下载 `anomalyco/opencode` 的对应 CLI release 资产安装
 
 示例：
 
 ```bash
-./opencodeui start --ip 0.0.0.0 --port 8080
+./opencodeui start --host 0.0.0.0 --port 8080
+./opencodeui start --path /srv/my-project
+./opencodeui start --foreground --path /srv/my-project
 ./opencodeui start --backend 127.0.0.1:4096
+./opencodeui restart --port 8081
+./opencodeui restart --backend 127.0.0.1:5000
 ```
 
 ## 更新
 
 ```bash
 ./opencodeui update
+./opencodeui update --oc-version v1.4.8
 ```
 
 说明：
 
-- `update` 只更新工具二进制
-- 如果服务正在运行，会提示是否先停止服务再继续更新
+- `update` 也会检查本机 `opencode`；已安装时直接下载并替换到最新 release，未安装时自动安装
+- 可用 `--oc-version` 指定把 `opencode` 固定更新到某个版本
+- `update` 会逐项交互确认：是否更新 `opencodeui`、是否更新 `opencode`，以及是否允许停服务重启；直接回车默认继续
 - 如果原服务正在运行，更新成功后会按原监听参数和后端参数自动重新拉起
+- 如果原服务正在纳管 `opencode`，更新后也会按原托管参数重新拉起
 - 因为前端已嵌入二进制，所以不再有单独前端更新逻辑
-- 下载 GitHub release 失败时，会自动尝试常见 GitHub 下载反代镜像
+- 下载 `opencodeui` 和 `opencode` release 失败时，会自动尝试常见 GitHub 下载反代镜像
 - 启动前会先检查监听地址是否可用，避免后台静默启动失败
 
 ## 密码兼容
