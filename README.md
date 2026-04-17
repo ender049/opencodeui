@@ -44,6 +44,7 @@
 
 ```bash
 ./opencodeui start --foreground
+./opencodeui start --external
 ./opencodeui start --backend 127.0.0.1:4096
 ```
 
@@ -51,7 +52,8 @@
 
 - `start` 会后台启动 `opencodeui`，同时由 `opencodeui` 拉起并托管 `opencode serve`
 - `start --foreground` 适合 `systemd`、`supervisor`、Docker 这类外部进程管理器前台运行
-- 只要显式提供 `--backend`，就表示不纳管 `opencode`，而是转发到你手动启动的后端
+- `start --external` 表示不纳管 `opencode`，并使用默认外部后端地址
+- `start --backend ...` 表示不纳管 `opencode`，并转发到你指定的外部后端
 - 如果本机还没有安装 `opencode`，托管启动时会自动下载对应平台的 CLI release 二进制并安装
 - `restart` 会优先复用当前运行实例的监听参数、后端参数和托管参数，也支持通过 flags 覆盖
 - `status` 会显示托管的 `opencode` 进程状态
@@ -76,8 +78,10 @@
 ./opencodeui start --host 0.0.0.0 --port 8080
 ./opencodeui start --path /srv/my-project
 ./opencodeui start --foreground --path /srv/my-project
+./opencodeui start --external
 ./opencodeui start --backend 127.0.0.1:4096
 ./opencodeui restart --port 8081
+./opencodeui restart --external
 ./opencodeui restart --backend 127.0.0.1:5000
 ```
 

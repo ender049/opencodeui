@@ -162,7 +162,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.check.outputs.version }}
-          name: OpenCodeUI ${{ needs.check.outputs.version }}
+          name: ocgo ${{ needs.check.outputs.version }}
           body: ${{ needs.prepare.outputs.notes }}
           files: release-assets/*
           make_latest: true

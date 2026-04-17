@@ -1,0 +1,453 @@
+/*
+ * 这份文件是“最小干预版”主题：
+ * 只改配色、弱文字可读性、输入框处理中动效。
+ * 不改 OpenCodeUI 原本的布局、圆角、结构、组件关系。
+ *
+ * 如果你完全不懂 CSS，也可以直接按下面的方法改。
+ * 不需要理解原理，照着改数字即可。
+ *
+ * -----------------------------------------------------------------------------
+ * 一、最常见需求，直接照着改
+ * -----------------------------------------------------------------------------
+ * 1. 暗色模式下文字发灰、看不清
+ *    去找这几行：
+ *    --text-200
+ *    --text-300
+ *    --text-400
+ *    --text-500
+ *    --text-600
+ *
+ *    想更清楚：把每一行最后那个百分比加大一点。
+ *    例如：
+ *    原来：--text-400: 44 6% 62%;
+ *    改成：--text-400: 44 6% 66%;
+ *
+ *    建议一次只加 3% 到 5%。
+ *    如果加太多，界面会显得发白。
+ *
+ * 2. 暗色模式下各区域边框不明显
+ *    去找这几行：
+ *    --border-100
+ *    --border-200
+ *    --border-300
+ *
+ *    想更明显：把每一行最后那个百分比加大一点。
+ *    例如：
+ *    原来：--border-100: 36 4% 26%;
+ *    改成：--border-100: 36 4% 30%;
+ *
+ *    建议一次只加 3% 到 5%。
+ *
+ * 3. 浅色模式太白、太冷，不够像纸
+ *    去找这几行：
+ *    --bg-000
+ *    --bg-100
+ *    --bg-200
+ *
+ *    想更暖一点：优先小改第二个和第三个数值，不要大改。
+ *    最简单做法：直接参考 OpenChamber / Flexoki 的暖米黄思路，
+ *    不建议一次改很多。
+ *
+ * 4. 橙色强调太亮、太跳
+ *    去找这几行：
+ *    --accent-brand
+ *    --accent-main-000
+ *    --accent-main-100
+ *    --accent-main-200
+ *
+ *    想柔和一点：把最后那个百分比略微调低。
+ *    例如：
+ *    原来：--accent-main-100: 23 70% 51%;
+ *    改成：--accent-main-100: 23 70% 47%;
+ *
+ * 5. “cached”、“xxm ago” 这类小灰字还是不清楚
+ *    先不要去改下面那些 class 规则。
+ *    先只改暗色里的：
+ *    --text-400
+ *
+ *    这通常最有效。
+ *
+ * 6. 输入框“处理中”的动效太弱或太强
+ *    去文件底部找这些名字：
+ *    [data-input-box].animate-border-pulse
+ *    flexoki-processing-border
+ *    flexoki-processing-aura
+ *    flexoki-processing-sheen
+ *
+ *    如果看不懂，建议不要乱改。
+ *    这部分不是日常最需要调的，优先先调文字和边框。
+ *
+ * -----------------------------------------------------------------------------
+ * 二、最推荐的调法顺序
+ * -----------------------------------------------------------------------------
+ * 如果你觉得“整体不舒服”，请按这个顺序改：
+ *
+ * 第一步：先改暗色文字
+ * 第二步：再改暗色边框
+ * 第三步：再看橙色是否太亮
+ * 第四步：最后才去碰输入框动效
+ *
+ * 这样最不容易把界面改乱。
+ *
+ * -----------------------------------------------------------------------------
+ * 三、直接照抄的现成方案
+ * -----------------------------------------------------------------------------
+ * 方案 A：想让暗色文字更清楚
+ * 把下面这些值每个都加亮一点：
+ * --text-200: 最后百分比 +3%
+ * --text-300: 最后百分比 +3%
+ * --text-400: 最后百分比 +4%
+ * --text-500: 最后百分比 +3%
+ * --text-600: 最后百分比 +3%
+ *
+ * 方案 B：想让暗色分区线更明显
+ * 把下面这些值每个都加亮一点：
+ * --border-100: 最后百分比 +3%
+ * --border-200: 最后百分比 +4%
+ * --border-300: 最后百分比 +4%
+ *
+ * 方案 C：想让橙色没那么刺眼
+ * 把下面这些值略微调暗：
+ * --accent-brand: 最后百分比 -3%
+ * --accent-main-000: 最后百分比 -3%
+ * --accent-main-100: 最后百分比 -3%
+ *
+ * -----------------------------------------------------------------------------
+ * 四、改的时候一定注意这两件事
+ * -----------------------------------------------------------------------------
+ * 1. 浅色要改两处
+ *    你会看到两段浅色设置：
+ *    - :root:root[data-mode="light"]
+ *    - @media (prefers-color-scheme: light)
+ *    这两处如果只改一处，可能会出现有时生效、有时不生效。
+ *    所以浅色改动要两处一起改。
+ *
+ * 2. 暗色也要改两处
+ *    你会看到两段暗色设置：
+ *    - :root:root[data-mode="dark"]
+ *    - @media (prefers-color-scheme: dark)
+ *    这两处也要一起改。
+ *
+ * -----------------------------------------------------------------------------
+ * 五、不建议做的事
+ * -----------------------------------------------------------------------------
+ * 1. 不建议大改布局、圆角、字体、对话框结构。
+ * 2. 不建议到处新增很多选择器覆盖原样式。
+ * 3. 不建议一次改太多数字，否则很难知道是哪一项改坏了。
+ * 4. 最安全的方法永远是：每次只改一点，然后刷新看效果。
+ */
+
+:root:root[data-mode="light"] {
+  --bg-000: 48 100% 97%; /* #FFFCF0 */
+  --bg-100: 35 81% 96%;  /* #FDF6EC */
+  --bg-200: 37 47% 93%;  /* #F6F0E6 */
+  --bg-300: 51 33% 92%;  /* #F2F0E5 */
+  --bg-400: 51 21% 88%;  /* #E6E4D9 */
+
+  --text-100: 0 3% 6%;   /* #100F0F */
+  --text-200: 45 2% 33%; /* #575653 */
+  --text-300: 36 2% 40%; /* #686663 */
+  --text-400: 50 3% 42%; /* #6F6E69 */
+  --text-500: 43 3% 52%; /* #878580 */
+  --text-600: 49 7% 70%; /* #B7B5AC */
+
+  --border-100: 50 14% 83%; /* #DAD8CE */
+  --border-200: 55 10% 79%; /* #CECDC3 */
+  --border-300: 49 7% 70%;  /* #B7B5AC */
+
+  --accent-brand: 22 80% 41%;          /* #BC5215 */
+  --accent-main-000: 22 80% 41%;       /* #BC5215 */
+  --accent-main-100: 23 70% 51%;       /* #DA702C */
+  --accent-main-200: 26 91% 72%;       /* #F9AE77 */
+  --accent-secondary-100: 212 68% 39%; /* #205EA6 */
+
+  --success-100: 73 84% 27%; /* #66800B */
+  --success-200: 74 48% 38%; /* ~#879A39 */
+  --success-bg: 73 45% 93%;
+
+  --warning-100: 22 80% 41%;
+  --warning-200: 23 70% 51%;
+  --warning-bg: 23 65% 92%;
+
+  --danger-000: 3 62% 42%;
+  --danger-100: 5 61% 54%;
+  --danger-200: 5 61% 54%;
+  --danger-bg: 5 70% 94%;
+  --danger-900: 5 55% 90%;
+
+  --info-100: 212 68% 39%;
+  --info-200: 208 49% 50%;
+  --info-bg: 212 60% 94%;
+
+  --oncolor-100: 48 100% 97%;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:root:not([data-mode]) {
+    --bg-000: 48 100% 97%;
+    --bg-100: 35 81% 96%;
+    --bg-200: 37 47% 93%;
+    --bg-300: 51 33% 92%;
+    --bg-400: 51 21% 88%;
+
+    --text-100: 0 3% 6%;
+    --text-200: 45 2% 33%;
+    --text-300: 36 2% 40%;
+    --text-400: 50 3% 42%;
+    --text-500: 43 3% 52%;
+    --text-600: 49 7% 70%;
+
+    --border-100: 50 14% 83%;
+    --border-200: 55 10% 79%;
+    --border-300: 49 7% 70%;
+
+    --accent-brand: 22 80% 41%;
+    --accent-main-000: 22 80% 41%;
+    --accent-main-100: 23 70% 51%;
+    --accent-main-200: 26 91% 72%;
+    --accent-secondary-100: 212 68% 39%;
+
+    --success-100: 73 84% 27%;
+    --success-200: 74 48% 38%;
+    --success-bg: 73 45% 93%;
+
+    --warning-100: 22 80% 41%;
+    --warning-200: 23 70% 51%;
+    --warning-bg: 23 65% 92%;
+
+    --danger-000: 3 62% 42%;
+    --danger-100: 5 61% 54%;
+    --danger-200: 5 61% 54%;
+    --danger-bg: 5 70% 94%;
+    --danger-900: 5 55% 90%;
+
+    --info-100: 212 68% 39%;
+    --info-200: 208 49% 50%;
+    --info-bg: 212 60% 94%;
+
+    --oncolor-100: 48 100% 97%;
+  }
+}
+
+:root:root[data-mode="dark"] {
+  --bg-000: 0 5% 8%;    /* #151313 */
+  --bg-100: 20 4% 10%;  /* #1C1A19 */
+  --bg-200: 30 3% 11%;  /* #1E1D1C */
+  --bg-300: 30 3% 15%;  /* #282726 */
+  --bg-400: 30 3% 20%;  /* #343331 */
+
+  --text-100: 50 16% 86%; /* #E0DED3 */
+  --text-200: 48 10% 76%; /* #C6C2B9 */
+  --text-300: 46 7% 68%;  /* #B1ADA2 */
+  --text-400: 44 6% 62%;  /* #A09B92 */
+  --text-500: 42 5% 56%;  /* #928D85 */
+  --text-600: 40 4% 49%;  /* #817D76 */
+
+  --border-100: 36 4% 26%; /* #46413D */
+  --border-200: 37 5% 32%; /* #56504B */
+  --border-300: 40 6% 42%; /* #726B65 */
+
+  --accent-brand: 23 70% 51%;          /* #DA702C */
+  --accent-main-000: 23 70% 51%;       /* #DA702C */
+  --accent-main-100: 23 70% 51%;       /* #DA702C */
+  --accent-main-200: 26 91% 72%;       /* #F9AE77 */
+  --accent-secondary-100: 208 49% 50%; /* #4385BE */
+
+  --success-100: 70 36% 51%; /* #A0AF54 */
+  --success-200: 74 48% 38%; /* #879A39 */
+  --success-bg: 74 35% 16%;
+
+  --warning-100: 23 70% 51%;
+  --warning-200: 26 91% 72%;
+  --warning-bg: 24 38% 16%;
+
+  --danger-000: 5 61% 54%;
+  --danger-100: 5 61% 54%;
+  --danger-200: 5 61% 54%;
+  --danger-bg: 5 32% 16%;
+  --danger-900: 5 24% 26%;
+
+  --info-100: 208 49% 50%;
+  --info-200: 208 49% 50%;
+  --info-bg: 212 40% 16%;
+
+  --oncolor-100: 0 5% 8%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:root:not([data-mode]) {
+    --bg-000: 0 5% 8%;
+    --bg-100: 20 4% 10%;
+    --bg-200: 30 3% 11%;
+    --bg-300: 30 3% 15%;
+    --bg-400: 30 3% 20%;
+
+    --text-100: 50 16% 86%;
+    --text-200: 48 10% 76%;
+    --text-300: 46 7% 68%;
+    --text-400: 44 6% 62%;
+    --text-500: 42 5% 56%;
+    --text-600: 40 4% 49%;
+
+    --border-100: 36 4% 26%;
+    --border-200: 37 5% 32%;
+    --border-300: 40 6% 42%;
+
+    --accent-brand: 23 70% 51%;
+    --accent-main-000: 23 70% 51%;
+    --accent-main-100: 23 70% 51%;
+    --accent-main-200: 26 91% 72%;
+    --accent-secondary-100: 208 49% 50%;
+
+    --success-100: 70 36% 51%;
+    --success-200: 74 48% 38%;
+    --success-bg: 74 35% 16%;
+
+    --warning-100: 23 70% 51%;
+    --warning-200: 26 91% 72%;
+    --warning-bg: 24 38% 16%;
+
+    --danger-000: 5 61% 54%;
+    --danger-100: 5 61% 54%;
+    --danger-200: 5 61% 54%;
+    --danger-bg: 5 32% 16%;
+    --danger-900: 5 24% 26%;
+
+    --info-100: 208 49% 50%;
+    --info-200: 208 49% 50%;
+    --info-bg: 212 40% 16%;
+
+    --oncolor-100: 0 5% 8%;
+  }
+}
+
+/* Secondary text readability */
+.text-text-300 {
+  color: hsl(var(--text-300)) !important;
+}
+
+.text-text-400,
+.text-text-400\/70,
+.text-text-400\/80 {
+  color: hsl(var(--text-400)) !important;
+}
+
+.text-text-500,
+.text-text-500\/70,
+.text-text-500\/80 {
+  color: hsl(var(--text-400)) !important;
+}
+
+/* Covers "cached" in StepFinishPartView */
+.text-text-600,
+.text-text-600\/70,
+.text-text-600\/80 {
+  color: hsl(var(--text-400)) !important;
+}
+
+/* Warm readable selection */
+::selection {
+  background: hsl(var(--text-400) / 0.16);
+  color: hsl(var(--text-100));
+}
+
+/* Stronger input-box processing animation */
+[data-input-box].animate-border-pulse {
+  position: relative;
+  isolation: isolate;
+  animation: flexoki-processing-border 1.35s cubic-bezier(0.37, 0, 0.2, 1) infinite !important;
+}
+
+[data-input-box].animate-border-pulse::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(120% 80% at 50% 0%, hsl(var(--accent-main-100) / 0.15), transparent 58%);
+  opacity: 0.34;
+  z-index: 0;
+  animation: flexoki-processing-aura 1.35s ease-in-out infinite;
+}
+
+[data-input-box].animate-border-pulse::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 2.5px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--accent-main-100) / 0.08) 18%,
+    hsl(var(--accent-main-100) / 0.82) 50%,
+    hsl(var(--accent-main-100) / 0.08) 82%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  animation: flexoki-processing-sheen 2.15s linear infinite;
+}
+
+@keyframes flexoki-processing-border {
+  0%,
+  100% {
+    border-color: hsl(var(--accent-main-100) / 0.5);
+    box-shadow:
+      0 0 0 1px hsl(var(--accent-main-100) / 0.05),
+      0 10px 28px -22px hsl(var(--accent-main-100) / 0.14);
+  }
+  50% {
+    border-color: hsl(var(--accent-main-100) / 0.98);
+    box-shadow:
+      0 0 0 1px hsl(var(--accent-main-100) / 0.18),
+      0 0 0 4px hsl(var(--accent-main-100) / 0.08),
+      0 16px 38px -24px hsl(var(--accent-main-100) / 0.3);
+  }
+}
+
+@keyframes flexoki-processing-aura {
+  0%,
+  100% {
+    opacity: 0.24;
+  }
+  50% {
+    opacity: 0.68;
+  }
+}
+
+@keyframes flexoki-processing-sheen {
+  0% {
+    background-position: 200% 0;
+    opacity: 0.18;
+  }
+  15% {
+    opacity: 0.28;
+  }
+  50% {
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 0.28;
+  }
+  100% {
+    background-position: -40% 0;
+    opacity: 0.18;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-input-box].animate-border-pulse,
+  [data-input-box].animate-border-pulse::before,
+  [data-input-box].animate-border-pulse::after {
+    animation: none !important;
+  }
+
+  [data-input-box].animate-border-pulse {
+    border-color: hsl(var(--accent-main-100) / 0.75) !important;
+    box-shadow: 0 0 0 1px hsl(var(--accent-main-100) / 0.14) !important;
+  }
+}

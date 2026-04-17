@@ -16,6 +16,7 @@ func main() {
 Examples:
   opencodeui start                  # Start in background and manage opencode
   opencodeui start --foreground     # Run in foreground
+  opencodeui start --external       # Use default external backend
   opencodeui start --backend 127.0.0.1:4096
                                    # Use external opencode backend
   opencodeui start --path /srv/my-project --oc-port 4097

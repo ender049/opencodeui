@@ -29,7 +29,7 @@ import (
 
 const (
 	repoOwner       = "ender049"
-	repoName        = "opencodeui"
+	repoName        = "ocgo"
 	opencodeOwner   = "anomalyco"
 	opencodeRepo    = "opencode"
 	pidFile         = ".opencodeui.pid"
@@ -71,12 +71,27 @@ type commandRunOptions struct {
 	ListenIP           string
 	ListenPort         int
 	Foreground         bool
+	ExternalBackend    bool
 	ManageOpencode     bool
 	ManageOpencodeSet  bool
 	OpencodeBinary     string
 	OpencodeListenIP   string
 	OpencodeListenPort int
 	OpencodeProjectDir string
+}
+
+type preparedToolUpdate struct {
+	TargetPath string
+	TempPath   string
+	Version    string
+}
+
+type preparedOpencodeUpdate struct {
+	TargetPath  string
+	ArchivePath string
+	Version     string
+	Existing    bool
+	Skip        bool
 }
 
 var versionCmd = &cobra.Command{
@@ -126,10 +141,14 @@ var updateCmd = &cobra.Command{
 func runUpdate(_ *cobra.Command, _ []string) error {
 	var runningState *serverState
 	runningPID := 0
+	runningBinaryPath := ""
 	if pid, err := readPID(); err == nil && pid > 0 && isProcessRunning(pid) {
 		runningPID = pid
 		if state, err := readState(); err == nil {
 			runningState = &state
+		}
+		if exePath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); err == nil {
+			runningBinaryPath = exePath
 		}
 	}
 
@@ -198,17 +217,6 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	if runningPID > 0 {
-		state := serverState{}
-		if runningState != nil {
-			state = *runningState
-		}
-		if err := stopTrackedServer(state, runningPID); err != nil {
-			return fmt.Errorf("failed to stop running server: %w", err)
-		}
-		fmt.Println("Server stopped")
-	}
-
 	if !updateTool {
 		fmt.Println("opencodeui update skipped")
 	}
@@ -216,34 +224,102 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 		fmt.Println("opencode update skipped")
 	}
 
+	toolBinaryPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to resolve current executable: %w", err)
+	}
+	if strings.TrimSpace(runningBinaryPath) != "" {
+		toolBinaryPath = runningBinaryPath
+	}
+
+	var preparedTool *preparedToolUpdate
+	var preparedOpencode *preparedOpencodeUpdate
+	defer func() {
+		if preparedTool != nil && strings.TrimSpace(preparedTool.TempPath) != "" {
+			_ = os.Remove(preparedTool.TempPath)
+		}
+		if preparedOpencode != nil && strings.TrimSpace(preparedOpencode.ArchivePath) != "" {
+			_ = os.Remove(preparedOpencode.ArchivePath)
+		}
+	}()
+
 	opencodeBinaryForUpdate := ""
 	if runningState != nil {
 		opencodeBinaryForUpdate = strings.TrimSpace(runningState.OpencodeBinary)
 	}
 	if updateOpencode {
-		updatedOpencodeBinary, err := updateOrInstallOpencode(opencodeBinaryForUpdate, opencodeTargetVersion)
+		preparedOpencode, err = prepareOpencodeUpdate(opencodeBinaryForUpdate, opencodeTargetVersion)
 		if err != nil {
 			return err
 		}
+	}
+	if updateTool {
+		preparedTool, err = prepareToolUpdate(toolBinaryPath, remote)
+		if err != nil {
+			return err
+		}
+	}
+	if preparedOpencode != nil && preparedOpencode.Skip {
+		updateOpencode = false
+		fmt.Println("opencode update skipped: already latest")
+	}
+	if !updateTool && !updateOpencode {
+		fmt.Println("No updates to apply")
+		return nil
+	}
+
+	serverWasRunning := runningPID > 0
+	serverStopped := false
+	restartState := serverState{}
+	if runningState != nil {
+		restartState = *runningState
+	}
+	if serverWasRunning {
+		state := serverState{}
+		if runningState != nil {
+			state = *runningState
+		}
+		if err := stopTrackedServer(state, runningPID); err != nil {
+			return fmt.Errorf("failed to stop running server: %w", err)
+		}
+		serverStopped = true
+		fmt.Println("Server stopped")
+	}
+
+	restartOnFailure := func(cause error) error {
+		if !serverStopped || runningState == nil {
+			return cause
+		}
+		pid, restartErr := startDetached(toolBinaryPath, &restartState)
+		if restartErr != nil {
+			return fmt.Errorf("%w; also failed to restart previous server: %v", cause, restartErr)
+		}
+		return fmt.Errorf("%w; previous server restored on pid %d", cause, pid)
+	}
+
+	if updateOpencode && preparedOpencode != nil {
+		updatedOpencodeBinary, err := applyPreparedOpencodeUpdate(preparedOpencode)
+		if err != nil {
+			return restartOnFailure(err)
+		}
+		fmt.Printf("Updated opencode to %s ✓\n", preparedOpencode.Version)
 		if runningState != nil && runningState.ManageOpencode {
 			runningState.OpencodeBinary = updatedOpencodeBinary
+			restartState.OpencodeBinary = updatedOpencodeBinary
 		}
 	}
 
-	if updateTool {
-		if err := updateToolBinary(remote); err != nil {
-			return err
+	if updateTool && preparedTool != nil {
+		if err := applyPreparedToolUpdate(preparedTool); err != nil {
+			return restartOnFailure(err)
 		}
-		fmt.Printf("Updated opencodeui to %s ✓\n", remote)
+		fmt.Printf("Updated opencodeui to %s ✓\n", preparedTool.Version)
+		toolBinaryPath = preparedTool.TargetPath
 	}
 
 	if runningState != nil {
-		selfPath, err := os.Executable()
-		if err != nil {
-			return fmt.Errorf("updated, but failed to resolve executable for restart: %w", err)
-		}
 		fmt.Println("Restarting server")
-		pid, err := startDetached(selfPath, runningState)
+		pid, err := startDetached(toolBinaryPath, runningState)
 		if err != nil {
 			return fmt.Errorf("updated, but failed to restart server: %w", err)
 		}
@@ -286,6 +362,118 @@ func updateToolBinary(remote string) error {
 	}
 	_ = os.Remove(backupPath)
 	return nil
+}
+
+func prepareToolUpdate(targetPath, version string) (*preparedToolUpdate, error) {
+	targetPath = strings.TrimSpace(targetPath)
+	version = strings.TrimSpace(version)
+	if targetPath == "" {
+		return nil, fmt.Errorf("missing tool target path")
+	}
+	if version == "" {
+		return nil, fmt.Errorf("missing tool target version")
+	}
+	tmpPath := targetPath + ".new"
+	if err := downloadReleaseAssetToFile(version, toolAssetName(), tmpPath); err != nil {
+		return nil, err
+	}
+	if runtime.GOOS != "windows" {
+		_ = os.Chmod(tmpPath, 0755)
+	}
+	return &preparedToolUpdate{TargetPath: targetPath, TempPath: tmpPath, Version: version}, nil
+}
+
+func applyPreparedToolUpdate(update *preparedToolUpdate) error {
+	if update == nil {
+		return fmt.Errorf("missing prepared tool update")
+	}
+	backupPath := update.TargetPath + ".bak"
+	if err := os.Rename(update.TargetPath, backupPath); err != nil {
+		_ = os.Remove(update.TempPath)
+		return err
+	}
+	if err := os.Rename(update.TempPath, update.TargetPath); err != nil {
+		_ = os.Rename(backupPath, update.TargetPath)
+		return err
+	}
+	_ = os.Remove(backupPath)
+	update.TempPath = ""
+	return nil
+}
+
+func prepareOpencodeUpdate(explicit, targetVersion string) (*preparedOpencodeUpdate, error) {
+	targetVersion = strings.TrimSpace(targetVersion)
+	resolved, _, err := findOpencodeBinary(explicit)
+	existing := err == nil
+	targetPath := ""
+	if existing {
+		targetPath = resolved
+	} else {
+		targetPath = explicitInstallTarget(explicit)
+		if targetPath == "" {
+			defaultPath, pathErr := defaultOpencodeInstallPath()
+			if pathErr != nil {
+				return nil, pathErr
+			}
+			targetPath = defaultPath
+		}
+	}
+	if targetVersion == "" {
+		latest, err := getLatestReleaseTag(opencodeOwner, opencodeRepo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve latest opencode version: %w", err)
+		}
+		targetVersion = latest
+	}
+	if targetVersion == "" {
+		return nil, fmt.Errorf("no published opencode release found")
+	}
+	if existing {
+		currentVersion, err := opencodeBinaryVersion(resolved)
+		if err == nil && sameVersion(currentVersion, targetVersion) {
+			fmt.Printf("opencode already at latest version: %s\n", strings.TrimSpace(currentVersion))
+			return &preparedOpencodeUpdate{TargetPath: targetPath, Version: targetVersion, Existing: true, Skip: true}, nil
+		}
+	}
+	assetName, err := opencodeAssetName()
+	if err != nil {
+		return nil, err
+	}
+	archiveFile, err := os.CreateTemp("", "opencode-*.tar.gz")
+	if err != nil {
+		return nil, err
+	}
+	archivePath := archiveFile.Name()
+	_ = archiveFile.Close()
+	if err := downloadReleaseAssetToFileFromRepo(opencodeOwner, opencodeRepo, targetVersion, assetName, archivePath); err != nil {
+		_ = os.Remove(archivePath)
+		return nil, fmt.Errorf("failed to download opencode %s: %w", targetVersion, err)
+	}
+	return &preparedOpencodeUpdate{TargetPath: targetPath, ArchivePath: archivePath, Version: targetVersion, Existing: existing}, nil
+}
+
+func applyPreparedOpencodeUpdate(update *preparedOpencodeUpdate) (string, error) {
+	if update == nil {
+		return "", fmt.Errorf("missing prepared opencode update")
+	}
+	if update.Skip {
+		return update.TargetPath, nil
+	}
+	installDir := filepath.Dir(update.TargetPath)
+	if err := os.MkdirAll(installDir, 0755); err != nil {
+		return "", err
+	}
+	if err := extractTarGzFile(update.ArchivePath, opencodeBinName, update.TargetPath); err != nil {
+		return "", err
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(update.TargetPath, 0755); err != nil {
+			return "", err
+		}
+	}
+	_ = os.Remove(update.ArchivePath)
+	update.ArchivePath = ""
+	return update.TargetPath, nil
 }
 
 func downloadReleaseAssetToFile(version, asset, targetPath string) error {
@@ -619,9 +807,11 @@ func init() {
 	configureRuntimeFlags(restartCmd, false)
 
 	startCmd.Flags().BoolP("foreground", "f", false, "Run in foreground instead of daemon mode")
+	startCmd.Flags().Bool("external", false, "Use an external opencode backend")
 
 	restartCmd.Flags().BoolP("foreground", "f", false, "Ignored on restart; kept for CLI symmetry")
 	restartCmd.Flags().MarkHidden("foreground")
+	restartCmd.Flags().Bool("external", false, "Use an external opencode backend after restart")
 }
 
 func configureRuntimeFlags(cmd *cobra.Command, withDefaults bool) {
@@ -635,12 +825,14 @@ func configureRuntimeFlags(cmd *cobra.Command, withDefaults bool) {
 		defaultOpencodeIP = defaultOpencodeListenIP
 		defaultOpencodePort = defaultOpencodeListenPort
 	}
-	cmd.Flags().StringP("backend", "b", "", "OpenCode backend URL")
+	cmd.Flags().String("backend", "", "OpenCode backend URL")
 	cmd.Flags().String("host", defaultIP, "Listen host")
 	cmd.Flags().IntP("port", "p", defaultPort, "Listen port")
+	cmd.Flags().String("oc-bin", "", "Path to managed opencode binary")
 	cmd.Flags().String("oc-host", defaultOpencodeIP, "Listen host for managed opencode")
 	cmd.Flags().Int("oc-port", defaultOpencodePort, "Listen port for managed opencode")
 	cmd.Flags().String("path", "", "Project directory for managed opencode serve")
+	_ = cmd.Flags().MarkHidden("oc-bin")
 }
 
 func runStart(cmd *cobra.Command, _ []string) error {
@@ -672,6 +864,11 @@ func readCommandRunOptions(cmd *cobra.Command, withDefaults bool) (commandRunOpt
 		return options, err
 	}
 	options.Foreground, _ = cmd.Flags().GetBool("foreground")
+	options.OpencodeBinary, err = cmd.Flags().GetString("oc-bin")
+	if err != nil {
+		return options, err
+	}
+	options.ExternalBackend, _ = cmd.Flags().GetBool("external")
 	options.OpencodeListenIP, err = cmd.Flags().GetString("oc-host")
 	if err != nil {
 		return options, err
@@ -684,7 +881,7 @@ func readCommandRunOptions(cmd *cobra.Command, withDefaults bool) (commandRunOpt
 	if err != nil {
 		return options, err
 	}
-	if strings.TrimSpace(options.BackendURL) != "" {
+	if strings.TrimSpace(options.BackendURL) != "" || options.ExternalBackend {
 		options.ManageOpencode = false
 		options.ManageOpencodeSet = true
 	} else {
@@ -1046,9 +1243,9 @@ func startDetached(selfPath string, state *serverState) (int, error) {
 	)
 	if state.ManageOpencode {
 		cmd.Args = append(cmd.Args,
-			"--opencode-binary", state.OpencodeBinary,
-			"--opencode-host", state.OpencodeListenIP,
-			"--opencode-port", fmt.Sprintf("%d", state.OpencodePort),
+			"--oc-bin", state.OpencodeBinary,
+			"--oc-host", state.OpencodeListenIP,
+			"--oc-port", fmt.Sprintf("%d", state.OpencodePort),
 		)
 		if strings.TrimSpace(state.OpencodeProjectDir) != "" {
 			cmd.Args = append(cmd.Args, "--path", state.OpencodeProjectDir)
