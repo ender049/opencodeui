@@ -65,9 +65,9 @@ jobs:
     outputs:
       notes: ${{ steps.upstream.outputs.body }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -98,7 +98,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Upload frontend artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend-dist.tar.gz
@@ -117,14 +117,14 @@ jobs:
             goarch: arm64
             asset: opencodeui-linux-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.21'
 
       - name: Download frontend artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: frontend-dist
 
@@ -141,7 +141,7 @@ jobs:
           go build -trimpath -ldflags="-s -w -X main.toolVersion=${{ needs.check.outputs.version }}" -o "${{ matrix.asset }}" .
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}
@@ -152,14 +152,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all binary artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: opencodeui-*
           path: release-assets
           merge-multiple: true
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.check.outputs.version }}
           name: ocgo ${{ needs.check.outputs.version }}
