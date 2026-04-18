@@ -1,4 +1,4 @@
-# opencodeui
+# ocgo
 
 一个很小的部署工具，用来绕开 OpenCodeUI 纯前端 Docker 部署时“更新要停容器、pull、再重启”的麻烦。
 
@@ -21,15 +21,15 @@
 下载对应平台的二进制（例如 release 中的 `ocgo-linux-amd64`）后：
 
 ```bash
-./opencodeui start
-./opencodeui start --foreground
-./opencodeui start --external-opencode --backend 127.0.0.1:4096
-./opencodeui restart
-./opencodeui status
-./opencodeui stop
-./opencodeui version
-./opencodeui version --remote
-./opencodeui update
+./ocgo start
+./ocgo start --foreground
+./ocgo start --external
+./ocgo restart
+./ocgo status
+./ocgo stop
+./ocgo version
+./ocgo version --remote
+./ocgo update
 ```
 
 默认行为：
@@ -43,14 +43,14 @@
 如果你要改成前台运行或使用外部后端：
 
 ```bash
-./opencodeui start --foreground
-./opencodeui start --external
-./opencodeui start --backend 127.0.0.1:4096
+./ocgo start --foreground
+./ocgo start --external
+./ocgo start --backend 127.0.0.1:4096
 ```
 
 说明：
 
-- `start` 会后台启动 `opencodeui`，同时由 `opencodeui` 拉起并托管 `opencode serve`
+- `start` 会后台启动 `ocgo`，同时由 `ocgo` 拉起并托管 `opencode serve`
 - `start --foreground` 适合 `systemd`、`supervisor`、Docker 这类外部进程管理器前台运行
 - `start --external` 表示不纳管 `opencode`，并使用默认外部后端地址
 - `start --backend ...` 表示不纳管 `opencode`，并转发到你指定的外部后端
@@ -75,32 +75,32 @@
 示例：
 
 ```bash
-./opencodeui start --host 0.0.0.0 --port 8080
-./opencodeui start --path /srv/my-project
-./opencodeui start --foreground --path /srv/my-project
-./opencodeui start --external
-./opencodeui start --backend 127.0.0.1:4096
-./opencodeui restart --port 8081
-./opencodeui restart --external
-./opencodeui restart --backend 127.0.0.1:5000
+./ocgo start --host 0.0.0.0 --port 8080
+./ocgo start --path /srv/my-project
+./ocgo start --foreground --path /srv/my-project
+./ocgo start --external
+./ocgo start --backend 127.0.0.1:4096
+./ocgo restart --port 8081
+./ocgo restart --external
+./ocgo restart --backend 127.0.0.1:5000
 ```
 
 ## 更新
 
 ```bash
-./opencodeui update
-./opencodeui update --oc-version v1.4.8
+./ocgo update
+./ocgo update --oc-version v1.4.8
 ```
 
 说明：
 
 - `update` 也会检查本机 `opencode`；已安装时直接下载并替换到最新 release，未安装时自动安装
 - 可用 `--oc-version` 指定把 `opencode` 固定更新到某个版本
-- `update` 会逐项交互确认：是否更新 `opencodeui`、是否更新 `opencode`，以及是否允许停服务重启；直接回车默认继续
+- `update` 会逐项交互确认：是否更新 `ocgo`、是否更新 `opencode`，以及是否允许停服务重启；直接回车默认继续
 - 如果原服务正在运行，更新成功后会按原监听参数和后端参数自动重新拉起
 - 如果原服务正在纳管 `opencode`，更新后也会按原托管参数重新拉起
 - 因为前端已嵌入二进制，所以不再有单独前端更新逻辑
-- 下载 `opencodeui` 和 `opencode` release 失败时，会自动尝试常见 GitHub 下载反代镜像
+- 下载 `ocgo` 和 `opencode` release 失败时，会自动尝试常见 GitHub 下载反代镜像
 - 启动前会先检查监听地址是否可用，避免后台静默启动失败
 
 ## 密码兼容

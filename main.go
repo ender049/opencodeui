@@ -9,23 +9,23 @@ import (
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "opencodeui",
-		Short: "OpenCodeUI Frontend Server",
+		Use:   "ocgo",
+		Short: "ocgo frontend server",
 		Long: `Static file server with API proxy to opencode backend.
 
 Examples:
-  opencodeui start                  # Start in background and manage opencode
-  opencodeui start --foreground     # Run in foreground
-  opencodeui start --external       # Use default external backend
-  opencodeui start --backend 127.0.0.1:4096
-                                   # Use external opencode backend
-  opencodeui start --path /srv/my-project --oc-port 4097
-  opencodeui restart                # Restart server
-  opencodeui status                # Check server status
-  opencodeui stop                  # Stop server
-  opencodeui serve                 # Internal foreground entrypoint
-  opencodeui update                # Update tool/frontend
-  opencodeui version               # Show versions
+	  ocgo start                  # Start in background and manage opencode
+	  ocgo start --foreground     # Run in foreground
+	  ocgo start --external       # Use default external backend
+	  ocgo start --backend 127.0.0.1:4096
+	                                   # Use external opencode backend
+	  ocgo start --path /srv/my-project --oc-port 4097
+	  ocgo restart                # Restart server
+	  ocgo status                # Check server status
+	  ocgo stop                  # Stop server
+	  ocgo serve                 # Internal foreground entrypoint
+	  ocgo update                # Update tool/frontend
+	  ocgo version               # Show versions
 `,
 	}
 

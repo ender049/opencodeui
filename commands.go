@@ -32,8 +32,8 @@ const (
 	repoName        = "ocgo"
 	opencodeOwner   = "anomalyco"
 	opencodeRepo    = "opencode"
-	pidFile         = ".opencodeui.pid"
-	stateFile       = ".opencodeui.state.json"
+	pidFile         = ".ocgo.pid"
+	stateFile       = ".ocgo.state.json"
 	frontendDir     = "dist"
 	shutdownTTL     = 5 * time.Second
 	opencodeBinName = "opencode"
@@ -166,9 +166,9 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 	stopCheck()
 	toolNeedsUpdate := remote != toolVersion
 	if toolNeedsUpdate {
-		fmt.Printf("opencodeui update available: %s -> %s\n", toolVersion, remote)
+		fmt.Printf("ocgo update available: %s -> %s\n", toolVersion, remote)
 	} else {
-		fmt.Printf("opencodeui already at latest version: %s\n", toolVersion)
+		fmt.Printf("ocgo already at latest version: %s\n", toolVersion)
 	}
 	opencodeTargetVersion := strings.TrimSpace(updateOCVersion)
 	if opencodeTargetVersion == "" {
@@ -183,13 +183,13 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 	}
 	updateTool := toolNeedsUpdate
 	if updateTool {
-		ok, err := confirmYesNo(fmt.Sprintf("Update opencodeui to %s? [Y/n]: ", remote))
+		ok, err := confirmYesNo(fmt.Sprintf("Update ocgo to %s? [Y/n]: ", remote))
 		if err != nil {
 			return err
 		}
 		updateTool = ok
 	} else {
-		fmt.Println("opencodeui update skipped: already latest")
+		fmt.Println("ocgo update skipped: already latest")
 	}
 
 	updateOpencode := true
@@ -218,7 +218,7 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 	}
 
 	if !updateTool {
-		fmt.Println("opencodeui update skipped")
+		fmt.Println("ocgo update skipped")
 	}
 	if !updateOpencode {
 		fmt.Println("opencode update skipped")
@@ -313,7 +313,7 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 		if err := applyPreparedToolUpdate(preparedTool); err != nil {
 			return restartOnFailure(err)
 		}
-		fmt.Printf("Updated opencodeui to %s ✓\n", preparedTool.Version)
+		fmt.Printf("Updated ocgo to %s ✓\n", preparedTool.Version)
 		toolBinaryPath = preparedTool.TargetPath
 	}
 
@@ -1187,8 +1187,7 @@ func stopTrackedServer(state serverState, pid int) error {
 			return err
 		}
 	}
-	_ = os.Remove(pidFile)
-	_ = os.Remove(stateFile)
+	removeStateFiles()
 	return nil
 }
 
@@ -1272,8 +1271,7 @@ func startDetached(selfPath string, state *serverState) (int, error) {
 
 	time.Sleep(500 * time.Millisecond)
 	if !isProcessRunning(pid) {
-		_ = os.Remove(pidFile)
-		_ = os.Remove(stateFile)
+		removeStateFiles()
 		return 0, fmt.Errorf("server exited immediately")
 	}
 
@@ -1288,8 +1286,7 @@ func runStop(_ *cobra.Command, _ []string) error {
 	}
 	state, _ := readState()
 	if !isProcessRunning(pid) {
-		_ = os.Remove(pidFile)
-		_ = os.Remove(stateFile)
+		removeStateFiles()
 		fmt.Println("Server not running (stale pid file)")
 		return nil
 	}
@@ -1301,8 +1298,7 @@ func runStop(_ *cobra.Command, _ []string) error {
 			return fmt.Errorf("server stopped but managed opencode is still running: %w", err)
 		}
 	}
-	_ = os.Remove(pidFile)
-	_ = os.Remove(stateFile)
+	removeStateFiles()
 	fmt.Println("Server stopped")
 	return nil
 }
@@ -1333,8 +1329,7 @@ func runRestart(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("server stopped but managed opencode is still running: %w", err)
 		}
 	}
-	_ = os.Remove(pidFile)
-	_ = os.Remove(stateFile)
+	removeStateFiles()
 
 	selfPath, err := os.Executable()
 	if err != nil {
@@ -1477,8 +1472,7 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 	if !isProcessRunning(pid) {
-		_ = os.Remove(pidFile)
-		_ = os.Remove(stateFile)
+		removeStateFiles()
 		fmt.Println("Stopped (stale pid file)")
 		return nil
 	}
@@ -1545,6 +1539,11 @@ func readState() (serverState, error) {
 	}
 	err = json.Unmarshal(data, &state)
 	return state, err
+}
+
+func removeStateFiles() {
+	_ = os.Remove(pidFile)
+	_ = os.Remove(stateFile)
 }
 
 func isProcessRunning(pid int) bool {
@@ -1710,8 +1709,7 @@ func runServeWithOptions(options commandRunOptions) error {
 		return fmt.Errorf("failed to write state: %w", err)
 	}
 	defer func() {
-		_ = os.Remove(pidFile)
-		_ = os.Remove(stateFile)
+		removeStateFiles()
 	}()
 
 	server := &http.Server{Addr: addr, Handler: mux}
